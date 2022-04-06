@@ -1,0 +1,26 @@
+sshd 作业
+
+1.在desktop主机中建立用户westos，并设定其密码为westoslinux
+	useradd westos
+	echo "westoslinux" | passwd --stdin westos
+	
+2.配置desktop中的sshd服务要求如下：
+
+	1）设定sshd服务只允许westos用户可以被访问使用
+		vim /etc/ssh/sshd_config
+		# 添加访问控制
+		Allowusers westos
+
+	2）创建westos用户的key认证方式
+		# 客户端机器生成一对密钥对，将公钥上传到node1
+		
+		ssh-keygen -f ~/.ssh/id_rsa -P '' -q
+		
+		ssh-copy-id -i ~/.ssh/id_rsa.pub westos@192.168.150.11
+
+	3）设定westos用户只允许使用key认证方式，屏蔽其系统密码认证方式
+		vim /etc/ssh/sshd_config
+		#屏蔽密码认证
+		PasswordAuthentication no
+
+	最后重启服务验证。

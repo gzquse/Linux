@@ -1,0 +1,74 @@
+1、接受一个参数，add或del，如果是add，则添加user1-user5，如果是del，则删除user1-user5
+	#!/bin/bash
+	#put in add，add user1-user10 or put in del,delete user1-user10
+
+	if [ $#  -ne 1 ] ; then
+		echo "please input \"add\" or \"del\" "
+		exit 10
+	fi
+
+	if [ $1 == add ] ; then
+		for i in {1..5} ; do
+			if ! id user$i &> /dev/null ;then
+				useradd user$i &> /dev/null
+				echo "user$i" | passwd --stdin user$i &> /dev/null
+				echo "user$i add finished"
+			else
+				echo "user$i exists"
+			fi
+		done
+	elif [ $1 == del ]; then
+		for i in {1..5} ; do
+			if id user$i &> /dev/null ; then
+				userdel -r user$i
+				echo "user$i delete successful"
+			else
+				echo "user$i not exists"
+			fi
+	fi
+	
+2、使用for循环在/clsn目录下批量创建10个html文件，其中每个文件需要包含10个随机小写字母加固定字符串clsn，名称示例如下
+	[ -d /clsn ] ||   -p /clsn
+	rpm -qa |grep pwgen &>/dev/null
+	if [ $? -eq  1 ] 
+	then 
+		yum install pwgen -y &>/dev/null
+	fi
+	
+	cd /clsn &&\
+	for i in {1..10}
+	do
+		#File_Name=`uuidgen |tr "0-9-" "a-z"|cut -c 1-10`
+		File_Name2=`pwgen -1A0 10`
+		touch ${File_Name2}_clsn.html
+	done
+	
+3、上一个结果文件名中的clsn字符串全部改成znix(最好用for循环实现),并且将扩展名html全部改成大写。
+	cd /clsn &&\
+	File_name=`ls |sed -r 's#(.*)_clsn.html#\1#g'`
+	
+	for i in $File_name
+	do
+	if [ -f ${i}_clsn.html ] 
+		then
+		mv ${i}_clsn.html ${i}_znix.HTML
+	else
+		echo "文件修改完成."
+		exit
+	fi
+	done
+	
+4、利用bash for循环打印下面这句话中字母数不大于6的单词(某企业面试真题)。
+	I am clsn Welcome to my blog http://blog.znix.top
+	
+	Word='I am clsn Welcome to my blog http://blog.znix.top'
+	
+	for i in $Word
+	do 
+	#[ ${#i} -le 6 ]  && echo $i  #子串方法
+	a=`echo $i |wc -L`
+	if [ $a -le 6 ]
+		then 
+		echo $i
+	fi
+	done

@@ -1,0 +1,63 @@
+rsyslog作业：
+
+1.将authpriv设备日志记录到/var/log/auth.log。
+	1).修改日志文件位置
+
+	vim /etc/rsyslog.conf
+
+	#authpriv.* /var/log/secure
+	authpriv.* /var/log/auth.log
+
+	2).重启程序，触发日志生成。
+
+	systemctl restart rsyslog.service
+	ll /var/log/auth.log
+
+2.改变应用程序sshd的日志设备为local5, 并定义local5设备日志记录到/var/log/local5.local。
+	1).设置ssh程序的日志设备为自定义设备。
+
+	vim /etc/ssh/sshd_config
+	#SyslogFacility AUTHPRIV
+	SyslogFacility LOCAL5
+
+	2).设置自定义设备日志文件存放位置。
+
+	vim /etc/rsyslog.conf
+	local5.* /var/log/local5.local
+
+	3).重启生效。
+
+	systemctl restart sshd 重启sshd程序
+	systemctl restart rsyslog 重启日志
+	
+	4).尝试登录，触发日志。
+
+	5).观察日志。理解自定义日志设备。
+
+3.使用logger程序写日志到指定的设备及级别。
+	服务器1（192.168.150.11）发送日志
+
+	vim /etc/ssh/sshd_config
+	#SyslogFacility AUTHPRIV # 将原来配置注释
+	SyslogFacility LOCAL5 # 自定义接收设备local5 
+
+	vim /etc/rsyslog.conf 此文件来管理日志
+	local5.* @192.168.150.12 # 此处填写另一台设备的IP地址。另一台设备是集中日志服务器。
+
+	systemctl restart sshd 重启sshd程序
+	systemctl restart rsyslog 重启日志
+	
+	
+
+	服务器2（192.168.150.12）接受日志
+
+	vim /etc/rsyslog.conf
+	$ModLoad imudp
+	$UDPServerRun 514 # 这两个 将注释去掉，使用udp
+	local5.* /var/log/server12.log
+
+	systemctl restart rsyslog
+	
+	尝试ssh登录服务器1.
+	并观察本地日志
+	tail -f /var/log/server12.log

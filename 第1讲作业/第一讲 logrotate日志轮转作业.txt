@@ -1,0 +1,55 @@
+logrotate日志轮转
+
+
+1、将我们自己生产的/var/log/err.log 日志志加入日志轮替的策略
+	vim /etc/logrotate.d/err
+	# 创建err文件，把/var/log/err.log加入轮替
+	
+	/var/log/err.log {
+		weekly				#每周轮替一次
+		rotate 6			#保留6个轮替日志
+		sharedscripts		#以下命令只执行一次
+		prerotate
+			/usr/bin/chattr -a /var/log/err.log
+			#在日志轮替前取消a属性，以便让日志可以轮替
+		endscript
+		
+		sharedscripts
+		postretate
+			/usr/bin/chattr +a /var/log/err.log
+			#日志轮替完毕再加上a属性
+		endscript
+		
+		sharedscripts
+		postrotate
+			/bin/kill -HUP $(/bin/cat /var/run/syslogd.pid 2>/dev/null) &>/dev/null
+			#重启rsyslog服务，确保日志轮替正常
+		endscript	
+	}
+	
+	
+2、要把 Nginx 服务的日志加入日志轮替，则也需要重启 Nginx 服务
+	首先，安装nginx
+		yum install http://mirrors.nju.edu.cn/nginx/centos/7/x86_64/RPMS/nginx-1.10.2-1.el7.ngx.x86_64.rpm
+	其次，启动服务后，客户端访问及可产生日志
+		systemctl start nginx
+		systemctl enable nginx
+		
+		# ls /var/log/nginx/
+		access.log  error.log
+
+	最后，对访问和错误日志加入轮替
+	vim /etc/logrotate.d/nginx
+	
+	/var/log/nginx/access.log /var/log/nginx/error.log {
+
+		daily
+		rotate 15
+		sharedscripts
+		postrotate
+			/bin/kill -HUP $(/bin/cat /var/run/syslogd.pid) &>/dev/null
+			#重启 rsyslog 服务
+			/bin/kill -HUP $(/bin/cat /var/run/nginx.pid) &>/dev/null
+			#重启 Nginx 服务
+		endscript
+	}

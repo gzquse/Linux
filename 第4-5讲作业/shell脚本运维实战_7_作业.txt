@@ -1,0 +1,93 @@
+
+1、编写函数，实现打印绿色OK和红色FAILED
+	判断是否有一个参数，存在为Ok，不存在为FAILED
+	
+    judge_canshu() {
+ 
+                if [ $# -ne 0 ];then
+                                echo -e "\033[42mOK\033[0m"
+                else
+                                echo -e "\033[41mFAILED\033[0m"
+ 
+                fi
+	}
+	judge_canshu $1
+2、编写函数实现两个数字做为参数，返回最大值
+	
+	#!/bin/bash
+	fmax () {
+		if [ $1 -lt $2 ] ;then
+			echo "$2"
+		else
+			echo "$1"
+		fi  
+	}
+	  
+	fmax $1 $2
+	
+3、编写函数，实现两个整数位参数，计算加减乘除。
+	#!/bin/bash
+	read -p "请输入两个整数：" a b
+	calc() {
+	# 首先判断输入的是否是整数
+	if ! [[ "$a" =~ ^[0-9]+$ && "$b" =~ ^[0-9]+$ ]]
+	then
+		echo "输入有误..."
+		exit 2
+	fi
+
+	echo "$a + $b = $[a+b]"
+	echo "$a - $b = $[a-b]"	
+	echo "$a * $b = $[a*b]"	
+	echo "$a / $b = $[a/b]"	
+	echo "$a % $b = $[a%b]"	
+	}
+
+	calc $a $b
+	
+5、将/etc/shadow文件的每一行作为元数赋值给数组
+	i=0
+	while read line
+	do
+		arr[${i}]=`echo ${line}`
+		let i++
+	done < /etc/shadow
+	echo "${arr[@]}"
+	
+6、使用关联数组统计文件/etc/passwd中用户使用的不同类型shell的数量
+	declare -A shells
+	while read line
+	do
+	  type=`echo $line |awk -F: '{print $NF}'`
+	  let shells[$type]++
+	done </etc/passwd
+
+	for i in ${!shells[@]}  #遍历索引
+	do
+	  echo "$i: ${shells[$i]}"
+	done
+
+7、使用关联数组按扩展名统计指定目录中文件的数量
+	#!/bin/bash
+	#统计目录下文件的种类及其数量
+	if [ $# -ne 1 ]
+	then
+		 echo $0 receive more than one arg
+	fi
+	
+	path=$1
+	declare -A statarray
+	#find out all the files in the path，and put in findresult.txt  
+	find $path -type f -print > findresult.txt            
+														
+	while read line
+	do
+		 ftype=`file -b "$line"`
+		 let statarray["$ftype"]++
+	done < findresult.txt  #文件信息重定向输入while read line            
+
+	echo ========file types and counts============
+	for ftype in "${!statarray[@]}"
+	do
+		 echo $ftype : ${statarray[$ftype]}
+	done

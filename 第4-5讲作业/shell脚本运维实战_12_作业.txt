@@ -1,0 +1,103 @@
+1、nginx配置文件，nginx路径根据自己安装的位置而修改 vim /etc/init.d/nginx
+#! /bin/bash
+#chkconfig: 2345 80 90
+#description:nginx run
+
+# nginx启动脚本
+# @author	Devil
+# @version	0.0.1
+# @date		2017-05-29
+
+PATH=/data/soft/nginx
+DESC="nginx daemon"
+NAME=nginx 
+DAEMON=$PATH/$NAME
+CONFIGFILE=$PATH/$NAME.conf
+PIDFILE=$PATH/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+set -e
+[ -x "$DAEMON" ] || exit 0
+do_start()
+{
+	$DAEMON -c $CONFIGFILE || echo -n "nginx already running"
+}
+do_stop()
+{
+	$DAEMON -s stop || echo -n "nginx not running"
+}
+do_reload()
+{
+	$DAEMON -s reload || echo -n "nginx can't reload"
+}
+case "$1" in
+	start)
+		echo -n "Starting $DESC: $NAME"
+		do_start
+		echo "."
+	;;
+	stop)
+		echo -n "Stopping $DESC: $NAME"
+		do_stop
+		echo "."
+	;;
+	reload|graceful)
+		echo -n "Reloading $DESC configuration..."
+		do_reload
+		echo "."
+	;;
+	restart)
+		echo -n "Restarting $DESC: $NAME"
+		do_stop
+		do_start
+		echo "."
+	;;
+	*)
+		echo "Usage: $SCRIPTNAME {start|stop|reload|restart}" >&2
+		exit 3
+	;;
+esac
+exit 0
+
+
+
+2、写一个脚本判断你的Linux服务器里是否开启web服务, 如果开启了请判断跑的是什么服务，是httpd还是nginx又或是其他?
+>分析
+    1.使用`netstat`查看是否存在80
+    2.筛选80端口对应的是`nginx`还是`httpd`
+	
+#!/bin/bash
+ port=`netstat -lnp | grep 80`
+ if [ -z "port" ]; then
+     echo "not start service.";
+     exit;
+ fi
+ web_server=`echo $port | awk -F'/' '{print $2}'|awk -F : '{print $1}'` 
+case $web_server in
+   httpd ) 
+       echo "apache server."
+   ;;
+   nginx )
+       echo "nginx server."
+   ;;
+   * )
+       echo "other server."
+   ;; 
+esac
+
+3、写一个shell脚本，通过curl -l返回的状态码来判断所访问的网站是否正常，比如:当状态码为200|301|302时，才算正常
+>分析
+    1.获取状态码的关键值
+    2.根据状态进行判断即可
+
+#!/bin/bash
+export PATH=$PATH
+Status_Num=$(curl -I -m 10 -o /dev/null -s -w %{http_code} www.baidu.com)
+if 
+  [ $Status_Num -eq 200 ]||[ $Status_Num -eq 302 ]||[ $Status_Num -eq 301 ];then
+    echo "此网站的状态码为：$Status_Num"
+else
+    echo "状态有误请查看当前状态码:$Status_Num 的状态码的错误"
+fi
+
+	
+	

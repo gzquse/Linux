@@ -1,0 +1,29 @@
+1、取出/etc/inittab文件的第6行；
+	方法1：# head -6 /etc/inittab | tail -1
+	方法2：# awk 'NR==6' /etc/inittab 
+	
+2、取出当前系统上所有用户的shell，要求，每种shell只显示一次，并且按顺序进行显示；
+	使用cut、sort结合管道实现
+	# cut -d: -f7 /etc/passwd | sort | uniq -c | sort -nr
+
+3、如果/var/log/messages文件的行数大于100，就显示好大的文件
+	[ `wc -l < /var/log/messages` -gt 100 ] && echo "好大的文件"
+
+4、显示/etc目录下所有以pa开头的文件，并统计其个数
+	find /etc -type f -name "pa*" | wc -l
+
+5、如果用户hadoop不存在就添加，否则显示用户已存在
+	! id hadoop  &>/dev/null && useradd hadoop  || echo "user hadoop is exists..."
+
+6、编写一个 Shell 程序 test1，程序执行时从键盘读入一个目录名，然后 显示这个目录下所有文件的信息
+	#!/bin/bash
+
+	read -p "请输入目录名: " DIR
+	[ -d $DIR ] && ls $DIR || echo "$DIR is not exists..."
+
+7、编写一个 Shell 程序 test2，从键盘读入 x、y 的值，然后做加法运算，最后输出结果
+	#!/bin/bash
+
+	read -p "请输入连个整数：" x y
+	
+	echo "x+y = $[x+y]"

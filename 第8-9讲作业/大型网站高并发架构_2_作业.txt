@@ -1,0 +1,11 @@
+
+安装部署Tomcat，并部署zrlog.war。
+
+	Tomcat安装部署过程参考课件。
+	
+	部署zrlog.war.
+	
+	数据库准备：
+		mysql -e "create database zrlog DEFAULT CHARACTER SET utf8;"
+		mysql -e "grant all on zrlog.* to zrlog@'localhost' identified by '123456';"
+	上传软件包至webapps，在线完成部署。

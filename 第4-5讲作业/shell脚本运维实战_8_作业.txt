@@ -1,0 +1,35 @@
+
+1、显示/etc/rc.d/rc.sysinit文件中以不区分大小的h开头的行；
+	grep -i ^h /etc/rc.d/rc.sysinit
+	或 grep ^[hH] /etc/rc.d/rc.sysinit
+	
+2、显示/etc/passwd中以sh结尾的行;
+	grep sh$ /etc/passwd
+
+3、显示/etc/fstab中以#开头，且后面跟一个或多个空白字符，而后又跟了任意非空白字符的行；
+	egrep "^#[[:space:]][^[:space:]]" /etc/fstab 
+
+4、查找/etc/rc.d/rc.local中包含“以to开始并以to结尾”的字串行；
+	egrep "(to).*\1" /etc/rc.d/rc.local
+
+5、查找/etc/inittab中含有“以s开头，并以d结尾的单词”模式的行；
+	grep -w "^s.*d$" /etc/inittab 
+
+6、查找ifconfig命令结果中的ipv4地址；
+	ifconfig |grep "inet " | tr -s " " | cut -d" " -f3
+
+7、显示/var/log/secure文件中包含“Failed”或“FAILED”的行
+	egrep "Failed|FAILED" /var/log/secure
+	egrep "(Failed|FAILED)" /var/log/secure
+	
+8、在/etc/passwd中取出默认shell为bash
+	grep "bash$" /etc/passwd 
+
+9、以长格式列出/etc/目录下以ns开头、.conf结尾的文件信息
+	find /etc/ -type f -name "ns*.conf"
+	
+10、高亮显示passwd文件中冒号，及其两侧的字符
+	egrep "(.(:.)){1}" /etc/passwd
+
+11、匹配/etc/services中开头结尾字母一样的单词
+	egrep "\<(.)[a-zA-Z]*\1\>" /etc/services 

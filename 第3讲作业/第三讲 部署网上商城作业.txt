@@ -1,0 +1,34 @@
+基于LAMP平台部署wordpress。
+
+	一、LAMP环境部署
+	yum install httpd mariadb-server php php-mysql
+	
+	systemctl enable httpd
+	systemctl start httpd
+	
+	二、数据库配置
+	1、支持中文
+	vim /etc/my.cnf
+	按o键
+	写入如下内容：
+	character-set-server=utf8
+	
+	保存：先按esc，同时按下shif和：，输入x保存退出。
+	
+	重启数据库服务器。
+		systemctl restart mariadb
+		systemctl enable mariadb
+		
+	2、初始安全设置
+	mysql_secure_installation
+	
+	三、部署wordpress
+		tar xf wordpress-4.3.1-zh_CN.tar.gz 
+		 mv wordpress /var/www/html/
+		 注意：也可以使用虚拟主机来实现。
+		查看帮助
+			http://IP/wordpress/readme.html
+		手动创建数据库（wordpress）
+			create database wordpress DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
+		授权：
+			grant all on wordpress.* to 'blog'@'%' identified by 'admin';

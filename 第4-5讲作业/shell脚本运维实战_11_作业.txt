@@ -1,0 +1,24 @@
+写一个shell脚本，检查指定的shell脚本是否有语法错误，若有错误，首先显示错误信息，然后提示用户输入q或者Q退出脚本，输入其他内容则直接用vim打开该shell脚本。
+
+#!/bin/bash
+sh -n $1 2>/tmp/err
+if [ $? -eq "0" ]
+then
+    echo "The script is OK."
+else
+    cat /tmp/err
+    read -p "Please inpupt Q/q to exit, or others to edit it by vim. " n
+    if [ -z $n ]
+    then
+        vim $1
+        exit
+    fi
+    if [ $n == "q" -o $n == "Q" ]
+    then
+        exit
+    else
+        vim $1
+        exit
+    fi
+
+fi

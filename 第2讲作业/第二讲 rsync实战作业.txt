@@ -1,0 +1,88 @@
+rsync实战作业
+
+某公司里有一台Web服务器，里面的数据很重要，但是如果硬盘坏了，数据就会丢失，现在领导要求你把数据在其他机器上做一个周期性定时备份。
+要求如下：
+
+	（1）每天晚上12点整在Web服务器A(web01 )上打包备份网站程序目录
+	（2）通过rsync命令推送到服务器B(backup)上备份保留
+	（备份思路可以是先在本地按日期打包，然后再利用rsync推到备份服务器上）
+
+	在B上搭建rsync服务
+	1、编辑rsync服务配置文件
+	vim /etc/rsyncd.conf
+	
+	uid = rsync
+	gid = rsync
+	use chroot = no
+	max connections = 200
+	timeout = 300
+	pid file = /var/run/rsyncd.pid
+	lock file = /var/run/rsync.lock
+	log file = /var/log/rsyncd.log
+	[backup]
+		path = /backup/
+		ignore errors
+		read only = false
+		list = false
+		hosts allow = 192.168.150.0/24
+		hosts deny = 0.0.0.0/32
+		auth users = rsync_backup
+		secrets file = /etc/rsync.password
+
+	2、创建同步目录，并修改其所属用户和组
+	mkdir /backup/
+	chown rsync.rsync -R /backup/
+	
+	3、创建rsync服务虚拟用户和密码文件
+	echo "rsync_backup:123456" >/etc/rsync.password
+	chmod 600 /etc/rsync.password
+	
+	4、启动rsync服务
+	systemctl start rsyncd
+	
+	
+	在A上的配置
+	1、创建备份目录，并修改目录所属用户和组
+	mkdir /backup
+	chown rsync.rsync -R /backup/
+	
+	2、创建rsync密码文件
+	echo "123456" >/etc/rsync.password
+	chmod 600 /etc/rsync.password
+	
+	3、手动测试同步
+	cd /backup/
+	echo 124 >test.txt
+	
+	rsync -avz /backup/ rsync_backup@192.168.150.11::backup --password-file=/etc/rsync.password
+	
+	4、在A上编写打包同步脚本
+	# cat bak.sh
+	#!/bin/sh
+
+	ip=`ifconfig ens33 | awk 'NR==2 {print $2}'`
+
+	[  ! -d /backup/$ip ] && mkdir -p /backup/$ip
+	cd /backup/$ip &&\
+	tar czf bak_$(date +%F).tar.gz /var/spool/cron/ /etc/rc.local /server/scripts/ /var/www/html
+
+	rsync -az /backup/ rsync_backup@192.168.150.12::backup --password-file=/etc/rsync.password
+
+	find /backup -type f -name "*.tar.gz" -mtime +7 |xargs rm -f
+	
+	5、添加到定时任务
+	crontab -l
+	####back system config file and web site  to B server####
+	00 00 * * * /bin/sh /server/scripts/bak.sh &>/dev/null
+	
+公司的A服务器上的/data目录下存放重要数据。先要求配置rsync+inotify 实时同步到B服务器的/data目录下。
+	参考脚本：
+	# vim src.sh
+	#!/bin/bash
+	INOTIFY_CMD="inotifywait -mrq -e modify,create,delete,attrib,close_write,move /data/"
+	RSYNC_CMD="rsync -avzH --delete /data/ root@192.168.150.12:/data"
+
+	$INOTIFY_CMD | while read DIRECTORY EVENT FILE
+	do
+			$RSYNC_CMD
+	done

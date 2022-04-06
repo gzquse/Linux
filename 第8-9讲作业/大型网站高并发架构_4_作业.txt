@@ -1,0 +1,48 @@
+架设一台NFS服务器，并按以下要求配置：
+1、开放/nfs/share目录，供所有用户查询资料。
+2、开放/nfs/upload目录 ,供服务器本网段内的数据上传目录，并将所有用户及所属目录的用户组映射为nfs-upload，其UID和GID均为210.
+3、将/home/tom目录仅共享给192.168.150.12这台主机，并且只有用户tom可以完全访问该目录。
+
+
+
+服务端
+
+关闭防火墙
+
+[root@server ~]# systemctl stop  firewalld
+[root@server ~]# systemctl disable firewalld
+[root@server ~]# vim /etc/selinux/config
+[root@server ~]# setenforce 0
+
+安装NFS服务
+[root@server ~]# yum install -y nfs-utils 
+启动NFS服务
+[root@server ~]# systemctl start nfs-server rpcbind
+
+1、
+[root@server ~]# mkdir -pv /nfs/shared
+
+[root@server ~]# echo xixi jiayou >/nfs/shared/xixi
+[root@server ~]# vim /etc/exports
+[root@server ~]# cat /etc/exports
+/nfs/shared *(ro,sync) 
+[root@server ~]# mkdir /nfs/shared -p
+[root@server ~]# systemctl restart nfs-server rpcbind
+
+2、
+创建用户和用户组
+[root@server ~]# groupadd -g 210 nfs-upload
+[root@server ~]# useradd -u 210 -g 210 nfs-upload
+[root@server ~]# mkdir /nfs/upload
+[root@server ~]# echo haha >/nfs/upload/haha
+[root@server ~]# chown nfs-upload.nfs-upload /nfs/upload
+[root@server ~]# vim /etc/exports
+/nfs/upload 192.168.150.0/24(rw,all_squash,anonuid=210,anongid=210)
+3、
+服务端==
+[root@server ~]# userdd tom
+[root@server ~]# echo haha123456 >/home/tom/xixi
+[root@server ~]# vim /etc/exports
+/home/tom 192.168.150.12(rw)
+
+客户端测试略。

@@ -1,0 +1,8 @@
+LAMP架构作业
+
+简述LAMP工作原理。
+	浏览器向服务器发送http请求，服务器 (Apache) 接受请求；
+	Apache判断客户端请求的资源是否为静态请求。若是静态请求，则Apache直接将客户端请求的静态资源（.html, .htm  .shtml等文件），通过Http response的形式传送给客户端；
+	若为php动态请求，则通过CGI协议将客户端的php请求传输给PHP程序，然后由php程序调用php解析器执行php请求。
+	PHP在执行php请求时判断是否会依赖mysql数据库。若不依赖mysql数据库，则由php解析器直接执行php相关脚本，将解析后的脚本再次通过CGI协议返传送给Apache.服务器，再执行“静态请求”的流程；
+	若依赖mysql数据库，则php程序通过php-mysql 驱动与mysql进行关联  ，获取相关数据 ，然后将其返还给php解释器 ，再次执行“不依赖mysql数据库”的流程。

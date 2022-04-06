@@ -1,0 +1,652 @@
+======================================================
+				shell脚本综合案例
+======================================================
+
+		
+		
+一、编写源码安装系统服务启动脚本
+	
+	RHEL6：
+	
+#!/bin/sh
+#
+# nginx - this script starts and stops the nginx daemin
+#
+# chkconfig:   - 85 15 
+# description:  Nginx is an HTTP(S) server, HTTP(S) reverse \
+#               proxy and IMAP/POP3 proxy server
+
+
+	服务脚本放置路径：/etc/init.d
+	脚本增加执行权限：chmod +x /etc/init.d/nginx
+	添加成系统服务脚本：chkconfig --add nginx
+	设置开机自启动：chkconfig --level 35 nginx on
+	
+	
+	RHEL7:
+	Centos 系统服务脚本目录： 
+
+	1. /usr/lib/systemd/  
+	有系统（system）和用户（user）之分， 
+	如需要开机没有登陆情况下就能运行的程序，存在系统服务（system）里，即：
+ 
+	2. /lib/systemd/system/  
+	反之，用户登录后才能运行的程序，存在用户（user）里 
+	服务以.service结尾。
+	这边以nginx开机运行为例
+	
+	#vim /usr/lib/systemd/system/nginx.service
+	[Unit]
+	Description=nginx - high performance web server 
+	Documentation=http://nginx.org/en/docs/
+	After=network.target remote-fs.target nss-lookup.target
+	
+	
+	[Service]
+	Type=forking
+	PIDFile=/var/run/nginx.pid
+	ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx.conf
+	ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx.conf
+	ExecReload=/bin/kill -s HUP $MAINPID
+	ExecStop=/bin/kill -s QUIT $MAINPID
+	PrivateTmp=true
+	
+	[Install]
+	WantedBy=multi-user.target
+	
+	
+	
+	[Unit]:服务的说明
+	Description:描述服务
+	After:描述服务类别
+	
+	[Service]服务运行参数的设置
+	Type=forking是后台运行的形式
+	ExecStart为服务的具体运行命令
+	ExecReload为重启命令
+	ExecStop为停止命令
+	PrivateTmp=True表示给服务分配独立的临时空间
+	
+	注意：[Service]的启动、重启、停止命令全部要求使用绝对路径
+	
+	[Install]运行级别下服务安装的相关设置，可设置为多用户，即系统运行级别为3
+	
+
+二、数据库备份
+	1、使用mysqldump实现分库分表备份
+	
+	yum install mariadb mariadb-server -y
+	
+	mysqldump -uuser -ppasswd -B db1 > /server/dbbak/db1.sql
+	
+	分库：
+	db1  db2 
+	备份：
+	for db in db1 db2
+	do
+	    mysqldump -uuser -ppasswd -B $db > /server/dbbak/$db.sql
+	
+	done
+	
+	
+分库备份：	
+#!/bin/bash
+# Date: 		2016-12-28
+# Author:		kongd
+# E-Mail:   	abc@sohu.com
+# Description:	Use mysqldump backup MySQL
+# ver:			v0.1
+
+# define var
+bak_user=root
+bak_passwd=123456
+bak_path=/server/dbbak
+bak_cmd="-u$bak_user -p$bak_passwd"
+exclude_db="Database|information_schema|mysql|performance_schema|test"
+db_name=`mysql $bak_cmd -e "show databases;" | egrep -v $exclude_db`
+
+
+# main program
+for db in `echo $db_name`
+do
+	[ -d $bak_path ] || mkdir -p $bak_path
+	mysqldump $bak_cmd -B $db |gzip> $bak_path/${db}_`date +%Y%m%d`.sql.gz
+done
+
+分表备份：
+
+#!/bin/bash
+# Date: 		2016-12-28
+# Author:		kongd
+# E-Mail:   	abc@sohu.com
+# Description:	Use mysqldump backup MySQL tables
+# ver:			v0.1
+
+# define var
+bak_user=root
+bak_passwd=123456
+bak_path=/server/dbbak
+bak_cmd="-u$bak_user -p$bak_passwd"
+exclude_db="Database|information_schema|mysql|performance_schema|test"
+db_name=`mysql $bak_cmd -e "show databases;" | egrep -v $exclude_db`
+
+
+
+# main program
+for db in `echo $db_name`
+do
+	[ -d ${bak_path}/$db ] || mkdir -p ${bak_path}/$db
+	table_name=`mysql $bak_cmd -e "use $db;show tables;" | grep -v "Tables_in"`
+	for table in `echo ${table_name}`
+	do
+	    mysqldump $bak_cmd $db $table |gzip > $bak_path/${db}/${db}_${table}.`date +%Y%m%d`.sql.gz
+	done
+done
+
+2、全网备份
+	应用场景：备份公司web服务器数据，日志以及系统配置信息。
+	脚本说明：本地使用tar备份，备份完成时使用md5sum 生成标志以便备份服务器上检查备份是否成功，备份结果用rsync推送到备份服务器（也可使用ftp方式上传至ftp服务器），备份服务器检查备份是否成功并发送邮件通知管理员。
+	备份本地保留一周，服务器保留一月数据。
+{
+	分析：需要备份内容（1-4为配置文件，5-6为web服务器数据及日志）
+			1、定时任务服务的配置文件/var/spool/cron/root
+			2、开机自启动配置文件/etc/rc.local
+			3、日常脚本的目录
+			4、防火墙iptables的配置文件/etc/sysconfig/iptables
+			5、web服务器数据，假定为/var/www/html
+			6、日志，假定为/var/log/httpd
+		首先，配置好rsync服务器和客户端，并测试可以使用；
+		其次，本地tar打包备份；
+		再次，使用rsync推送到服务器；
+		最后，服务器端检查并邮件告警；
+	    测试各个阶段都没问题，设置定时任务。
+
+代码：{代码开始
+#!/bin/bash
+
+#define var
+IP=`ifconfig eth0 | awk -F '[ :]+' 'NR==2 {print $4}'`
+Today=$(date +%F)
+Path=/backup/$IP
+COFING_data="var/spool/cron/root etc/rc.local etc/sysconfig/iptables Server/Scripts/"
+WEB_data=var/www/html
+WEB_log=var/log/httpd
+BAK_CONFIG_NAME=config.$Today.tar.gz
+BAK_WEB_DATA_NAME=web_data.$Today.tar.gz
+BAK_WEB_LOG_NAME=web_log.$Today.tar.gz
+BAK_Server=192.168.147.200
+Flag_file=flag.$Today.txt
+
+#backup
+[ -d $Path ] || mkdir -p $Path
+cd / && \
+tar czf $Path/${BAK_CONFIG_NAME} ${COFING_data} && \
+tar czf $Path/${BAK_WEB_DATA_NAME} ${WEB_data} && \
+tar czf /$Path/${BAK_WEB_LOG_NAME} ${WEB_log}
+
+#check backup && make Flag_file
+if [ $? == 0 ]
+then
+        find $Path -type f -name "*$Today.tar.gz" | xargs md5sum >> $Path/${Flag_file}
+else
+        echo "backup Failure" >> $Path/${Flag_file}
+        exit 1
+fi
+
+#to backup server
+rsync -az /backup/ rsync_backup@${BAK_Server}::backup --password-file=/etc/rsyncd.passwd
+
+#del local backup file,Keep a week data 
+find $Path -type f -name "*.tar.gz" -mtime +7 | xargs rm -f	
+	
+	代码结束}	
+	
+	服务器端检查邮件告警脚本在服务端完成：
+	{代码开始
+#!/bin/bash
+
+#define var
+Today=$(date +%F)
+Flag_file=/backup/192.168.147.128/flag.$Today.txt
+Mail_file=/opt/mail_bak_${Today}.txt
+
+#check flag
+if [ ! -f ${Flag_file} ]
+then
+        echo "backup is error,pls view back server" > ${Mail_file}
+else
+        find  /backup -type f -name "flag.$(date +%F)*" | xargs md5sum -c | grep FAILED > ${Mail_file}
+fi
+
+#check Mail_file
+if [ -s ${Mail_file} ]
+then
+        mail -s "$(date +%F-%T) back" esen_monitor@163.com <${Mail_file}
+else
+        echo "backup is success!"
+fi
+
+#del remote bak file,30 days keep data 
+find /backup -type f -name "*.tar.gz" -mtime +30 | xargs rm -f
+
+	
+	代码结束}
+	
+	
+}
+
+	3、基于Innobackupex的MySQL备份脚本
+	具体要求：
+    	1、周日全备
+    	2、周一至周六增量备份
+    	3、备份使用backup用户
+    	grant SELECT,RELOAD,SHOW DATABASES,LOCK TABLES,SUPER,REPLICATION CLIENT on *.* to backup@'localhost' identified by '123456';
+    	4、备份后进行压缩并将备份上传至ftp服务器
+    	5、备份在本机保存一周数据，ftp服务器端保留半月
+    	6、结合计划任务，备份时间为每天02:00:00
+#!/bin/bash
+
+##########################################################################  
+# File     : innobk.sh                                                   #   
+# Author   : kongdan                                                     #
+# E-Mail   : kongdan@hzitedu.com                                         #
+# Date     : 20161224                                                    #  
+# Description :                                                          #  
+#    The script will call innobackupex to                                #  
+#    take a full or increment backup for mysql db.                       #  
+#    Currently it will take follow principal to backup:                  #  
+#       Sun take full backup.                                            #    
+#       Mon,Tue,Wend,Thur,Fri,Sat take incremental backup.               #  
+#                                                                        #  
+# Usage Example:                                                         #  
+#     innobk.sh                                                          #
+##########################################################################  
+
+  
+# Check to use root users to run scripts
+if [ "`whoami`" != "root" ]
+then
+    echo "please Run script using root user!"
+    exit 1    
+fi
+
+# Defined variables
+
+bak_dir=/server/backup/dbback
+log_dir=${bak_dir}/log  
+cmdInno=/usr/bin/innobackupex  
+sock=/var/lib/mysql/mysql.sock
+config_file=/etc/my.cnf
+bak_user=backup
+bak_passwd=123456
+bak_cmd="$cmdInno --user=${bak_user} --password=${bak_passwd} --defaults-file=${config_file} --socket=${sock} --no-timestamp"
+
+day=`date +%u`  
+lastday=`date -d '-1 day' +%Y%m%d`
+dt=`date +%Y%m%d`
+ts=`date +%Y%m%d%H%M%S`
+log_file=${log_dir}/innobak_${ts}.log
+
+# Defined bak check variables
+check_flag="completed OK"
+mail_user="root@locallhost"
+
+# Defined FTP server variables
+ftp_host=192.168.95.100
+ftp_user=backup
+ftp_passwd=backup
+deldate=`date -d '-7 day' +%Y%m%d`
+ftp_log_file=${log_dir}/ftp_${ts}.log
+
+
+# Check backup directory  
+
+[ ! -d "${bak_dir}" ] && mkdir -p ${bak_dir}
+[ ! -d "${log_dir}" ] && mkdir -p ${log_dir}
+
+# backup log 
+echo "Start innobackup at `date`."               >>${log_file} 
+echo "Current defaults file is : ${config_file}" >>${log_file}
+echo "Current host is : `hostname -s`"           >>${log_file} 
+echo "Current mysql user is : ${bak_user}"       >>${log_file}
+echo "Current password is : ${bak_passwd}"       >>${log_file}
+echo "Current log directory is : ${log_dir}"     >>${log_file}  
+echo "Current log file is : ${log_file}"         >>${log_file}
+  
+# Define backup function for full and incremental backup type.  
+bak_full()
+{  
+    [ ! -d "${bak_dir}/full_${dt}" ] && ( 
+        echo "$bak_cmd ${bak_dir}/full_${dt}  2> ${log_dir}/bak_$ts.log" >>${log_file}
+        $bak_cmd ${bak_dir}/full_${dt}  2> ${log_dir}/bak_$ts.log
+    )
+}
+  
+bak_inc()  
+{  
+    [ ! -d "${bak_dir}/inc_${dt}" ] && (
+        echo "$bak_cmd --incremental ${bak_dir}/inc_$dt --incremental-basedir=$basedir 2>${log_dir}/bak_${ts}.log" >>${log_file}
+        $bak_cmd --incremental ${bak_dir}/inc_$dt --incremental-basedir=$basedir  2>${log_dir}/bak_${ts}.log
+    )
+}
+
+
+bak_check()
+{
+	tail -1 ${log_dir}/bak_${dt}*.log | grep "$check_flag" &> /dev/null 
+	[ $? -ne 0 ] &&  echo "`date +"%F %T"`: Backup MySQL Failue" | mail -s "Backup MySQL Failue" ${mail_user}
+}
+
+echo "Start put to FTP server at `date`."              >>${ftp_log_file}
+echo "Current host is : `hostname -s`"                 >>${ftp_log_file}
+echo "Upload FTP server address : ${ftp_host}"         >>${ftp_log_file}
+echo "Upload FTP server backup user : ${ftp_user}"     >>${ftp_log_file}
+echo "Upload FTP server backup passwd : ${ftp_passwd}" >>${ftp_log_file}
+echo "Put to FTP server log directory is : ${log_dir}" >>${ftp_log_file}
+
+put_ftp()
+{
+    cd ${bak_dir} 
+    [ -f ${bak_name}.tar.gz ] || {
+        tar czf ${bak_name}.tar.gz ${bak_name}
+        lftp -u ${ftp_user},${ftp_passwd} ftp://${ftp_host} <<EOF
+mkdir ${dt}
+cd ${dt}
+mput ${bak_name}.tar.gz
+cd ..
+rm -rf $deldate
+close
+bye
+EOF
+        echo "Upload backup to FTP server end at `date`."      >>${ftp_log_file}
+    }
+}
+
+
+# Main program
+if [ $day -eq 7 ]
+then
+	bak_full
+        bak_check
+	bak_name=full_$dt
+	put_ftp
+elif [ $day -eq 1 ]
+then
+	basedir=${bak_dir}/full_$lastday
+	bak_inc
+	bak_check
+	bak_name=inc_$dt
+	put_ftp	
+else
+	basedir=${bak_dir}/inc_$lastday
+	bak_inc
+	bak_check
+	bak_name=inc_$dt
+	put_ftp	
+fi
+
+
+# Check backup log ,remove history logfile and bacupset.
+find ${bak_dir} -type f -mtime +6 -exec rm {} \;
+find ${log_dir} -type f -mtime +6 -exec rm {} \;
+
+
+三、监控脚本
+Web服务器监控
+	应用场景：监控web服务器状态，异常时邮件报警。
+	脚本说明：通过wget（也可以用curl）监控服务器状态，如果不能正常访问，ping检测网络，网络正常通知管理员检查服务，ping不通邮件通知管理员。
+	服务器列表使用数组，服务器状态函数使用返回值判断服务器是否异常。
+{
+	
+	代码：{代码开始
+#!/bin/bash
+
+#define var
+RETVAL=0
+FAILCOUNT=0
+MAIL_USER="esen_monitor@163.com"
+
+RED='\033[31m'
+GREEN='\033[32m'
+BLUE='\033[34m'
+CLOSE='\033[0m'
+
+#define server list
+SERVER_ALL_LIST=(
+172.21.200.16:80
+172.21.200.200:80
+172.21.200.15:9080
+)
+
+SERVER_ALL_LEN=${#SERVER_ALL_LIST[*]}
+
+#web detection function
+LOG_FILE="/tmp/web_check.log"
+
+function GetUrlStatus() {
+	for ((j=1;j<=3;j++))
+	do
+		wget -T 10 --tries=1 --spider http://${1} > /dev/null 2>&1
+		if [ $? -ne 0 ] 
+		then 
+			let FAILCOUNT+=1
+		else
+			FAILCOUNT=0
+			break
+		fi
+	done
+
+	[ $FAILCOUNT -gt 1 ] && RETVAL=1 || RETVAL=0
+	return $RETVAL
+}
+
+function Send_Mail() {
+	NowTime=$(date +"%Y-%m-%d %H:%M:%S")
+	SC="http://${1} service is error,${NowTime}."
+	mail -s "$SC" $MAIL_USER < ${LOG_FILE}
+}
+
+#service check
+i=0
+while [ $i -lt ${SERVER_ALL_LEN} ]
+do
+	SERVER_IP=$(echo ${SERVER_ALL_LIST[$i]} | awk -F: '{print $1}')
+	SERVER_PORT=$(echo ${SERVER_ALL_LIST[$i]} | awk -F: '{print $2}')
+	echo -n -e  "${BLUE} check ${SERVER_ALL_LIST[$i]}: ${CLOSE}" |tee ${LOG_FILE}
+	if GetUrlStatus ${SERVER_ALL_LIST[$i]} 
+	then
+		echo -e "${GREEN} Server is working properly! ${CLOSE}" 
+		elif ping -c 1 $SERVER_IP > /dev/null 2>&1
+		then
+			echo -e "${RED} ping ok,pls check service! ${CLOSE}" |tee -a ${LOG_FILE}
+			Send_Mail ${SERVER_ALL_LIST[$i]}
+	else
+		echo -e "${RED} ping failure,pls Contact your administrator! ${CLOSE}" |tee -a ${LOG_FILE}
+		Send_Mail ${SERVER_ALL_LIST[$i]}
+	fi
+
+	let i++
+done
+#Delete temporary files
+rm -f ${LOG_FILE}
+
+	
+	代码结束}
+	
+脚本执行及测试:{
+[root@localhost Scripts]# sh check_url.sh 
+ check 172.21.200.16:80:  ping failure,pls Contact your administrator! 
+ check 172.21.200.200:80:  ping ok,pls check service! 
+ check 172.21.200.15:9080:  Server is working properly! 
+ 邮件报警：（邮件中颜色无法显示）
+ [34m check 172.21.200.16:80: [0m[31m ping failure,pls Contact your administrator! [0m
+}
+其他检测方法：
+	使用curl检测：
+	function GetUrlStatus() {
+	for ((j=1;j<=3;j++))
+	do
+		SERVER_STATUS_CODE=$(curl -o /dev/null -s -m 10 --connect-timeout 10 -w %{http_code} "http://${1}")
+		if [ ${SERVER_STATUS_CODE} -ne 200 ] 
+		then 
+			let FAILCOUNT+=1
+		else
+			FAILCOUNT=0
+			break
+		fi
+	done
+
+	[ $FAILCOUNT -gt 1 ] && RETVAL=1 || RETVAL=0
+    return $RETVAL
+		
+	使用nmap探测端口是否open判断服务是否异常：
+	function GetUrlStatus() {
+	for ((j=1;j<=3;j++))
+	do
+		SERVER_PORT_STATUS=$(nmap -P0 -p${SERVER_PORT} -sS -vv ${SERVER_IP} | grep ${SERVER_PORT} | tail -1 | awk '{print $2}')
+		if [ "${SERVER_PORT_STATUS}" != "open" ] 
+		then 
+			let FAILCOUNT+=1
+		else
+			FAILCOUNT=0
+			break
+		fi
+	done
+	
+	[ $FAILCOUNT -gt 1 ] && RETVAL=1 || RETVAL=0
+    return $RETVAL
+}
+}	
+
+四、安全脚本
+	
+4、自动化禁止恶意IP访问
+	应用场景：防止恶意IP尝试ssh登录。
+	脚本说明：将密码输入错误超过4次的IP地址通过iptables防火墙阻止访问。
+	
+	分析：
+		1）首先，需要知道ssh远程访问记录在哪个文件中/var/log/secure
+		2）其次，模拟远程访问输错密码，查看日志文件
+		Dec 26 11:34:53 agent1 sshd[3060]: Failed password for root from 192.168.211.1 port 2075 ssh2
+		3）再次，通过日志可以看到关键信息“Failed password”表示密码错误
+		   有可能是手误输错，所以就需要设定几次错误为恶意试探密码，建议设置为4
+		   另一个关键信息是需要将密码错误的IP地址提取出来
+		   对提取出来的IP地址进行统计次数
+		4）最后，需要明确怎么在脚本中通过iptables策略设置阻止恶意IP访问
+			策略添加到哪里合适
+			防火墙配置文件等
+
+#!/bin/bash
+#Name: auto_deny_ip.sh
+#Description: Prohibit malicious IP attack access
+#Author: kongd
+#Mail: author@qq.com
+#Version: 0.0.1
+#Date: 2015-08-22 01:51:42
+#Usage: auto_deny_ip.sh
+
+#define var
+SEC_FILE=/var/log/secure
+IPTABLES_CONF=/etc/sysconfig/iptables
+
+IP_ADDR=`tail -1000 ${SEC_FILE} | grep "Failed password" | egrep -o "([0-9]{1,3}\.){3}[0-9]{1,3}" | sort -nr| uniq -c | awk '$1>4 {print $2}'`
+# IP_ADDR=`tail -1000 ${SEC_FILE} | awk '/Failed password/ {print $((NF-3))}'| sort -nr | uniq -c | awk '$1>4 {print $1}'`
+
+for i in `echo ${IP_ADDR}`
+do
+	grep $i ${IPTABLES_CONF}
+	if [ $? -ne 0 ]
+	then
+		sed -i "/lo/a -A INPUT -s $i -p tcp -m state --state NEW -m tcp --dport 22 -j DROP" ${IPTABLES_CONF}
+	else
+		echo "This is $i is esist in iptables,please exit..."
+	fi
+done
+
+/etc/init.d/iptables restart			
+# 以上脚本有bug，如果ip在防火墙中可能导致无法添加，比如一个ip设置了允许访问80端口，那么此脚本运行后无法实现阻止此IP ssh连接服务器
+
+
+===================下面代码使用临时文件解决以上bug========================
+# cat denyIP.sh 
+#!/bin/bash
+
+# 定义变量
+logFile=/var/log/secure #日志文件
+
+IP=`awk '/Failed password/ {++IP[$(NF-3)]}  END {for (v in IP) {if (IP[v] >=4) {print v}}}' ${logFile}` #ssh 密码错误的IP
+CTL="INPUT -p tcp -m tcp --dport 22 -s"
+
+
+for v in $IP
+do
+
+	iptables -L -n | tr -s " " | awk -F"[ :]" '/^DROP/ && $NF==22 {print $4}' > ipTempList #将已经添加ssh拒绝IP记录到临时文件
+	
+	if ! grep "$v" ipTempList &>/dev/null
+	then
+		iptables -I ${CTL} ${v} -j DROP
+	fi
+
+done
+
+
+service iptables save
+rm -f ipTempList #删除临时文件
+
+====================下面使用临时变量==============================
+# cat denyIP.sh 
+#!/bin/bash
+
+# 定义变量
+logFile=/var/log/secure #日志文件
+
+IP=`awk '/Failed password/ {++IP[$(NF-3)]}  END {for (v in IP) {if (IP[v] >=4) {print v}}}' ${logFile}` #ssh 密码错误的IP
+CTL="INPUT -p tcp -m tcp --dport 22 -s"
+
+
+for v in $IP
+do
+
+	ipList=`iptables -L -n | tr -s " " | awk -F"[ :]" '/^DROP/ && $NF==22 {print $4}'`  #将已经添加ssh拒绝IP记录到临时变量
+	
+	if !  echo ${ipList} |grep "$v" &>/dev/null
+	then
+		iptables -I ${CTL} ${v} -j DROP
+	fi
+
+done
+
+
+service iptables save
+unset ipList #删除临时变量
+
+
+
+=====================下面代码使用临时数组============================
+
+# cat denyIP.sh 
+#!/bin/bash
+
+# 定义变量
+logFile=/var/log/secure #日志文件
+
+IP=`awk '/Failed password/ {++IP[$(NF-3)]}  END {for (v in IP) {if (IP[v] >=4) {print v}}}' ${logFile}` #ssh 密码错误的IP
+CTL="INPUT -p tcp -m tcp --dport 22 -s"
+
+
+for v in $IP
+do
+
+	ipList=(`iptables -L -n | tr -s " " | awk -F"[ :]" '/^DROP/ && $NF==22 {print $4}'`)  #将已经添加ssh拒绝IP记录到临时数组
+	
+	if !  echo ${ipList[*]} |grep "$v" &>/dev/null
+	then
+		iptables -I ${CTL} ${v} -j DROP
+	fi
+
+done
+
+
+service iptables save
+unset ipList #删除临时变量

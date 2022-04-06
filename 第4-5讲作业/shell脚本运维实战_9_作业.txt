@@ -1,0 +1,22 @@
+1、删除/etc/grub2.conf文件中所有以空白开头的行行首的空白字符
+	sed -r "s/^[[:space:]]+//" /etc/grub2.cfg 
+	
+2、删除/etc/fstab文件中所有以#开头，后面至少跟一个空白字符的行的行首的#和空白字符
+	sed -r "s/^#[[:space:]]+//" /etc/fstab 
+	sed -r 's/^#[[:space:]]+(.*)/\1/' /etc/fstab
+	
+3、在/root/install.log每一行行首增加#号
+	sed -r 's/^/#/' /root/install.log
+	sed -r 's/(^.*)/#\1/' /root/install.log
+
+4、在/etc/fstab文件中不以#开头的行的行首增加#号
+	sed -r 's/(^[^#].*)/#\1/' /etc/fstab 
+	
+5、利用sed 取出ifconfig命令中本机的IPv4地址
+	ifconfig |sed -n '/inet /p' | sed -r 's/.*inet (.*) netmask.*/\1/'
+
+6、关闭本机SELinux的功能
+	sed -i 's/=enforcing/=disabled/' /etc/selinux/config 
+	
+7、在/etc/hosts配置文件中添加内容
+	sed -i '$a 119.75.217.56 www.baidu.com' /etc/hosts

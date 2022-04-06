@@ -1,0 +1,81 @@
+1、ping主机测试
+	#!/bin/bash
+
+	read -p "请输入要测试的主机地址：" IP
+
+	if ping -c2 $IP &> /dev/null
+	then
+		echo "$IP is up..."
+	else
+		echo "$IP is down..."
+	fi
+
+2、判断一个用户是否存在
+	#!/bin/bash
+
+	read -p "请输入用户名：" user
+	 
+	if id $user &>/dev/null
+	then
+		echo "$user is exists..."
+	else
+		echo "$user is not exists..."
+	fi 
+	
+3、判断当前内核主版本是否为3，且次版本是否大于10
+	#!/bin/bash
+
+	ver=($(uname -r | awk -F"." '{print $1,$2}'))
+	if [ ${ver[0]} -eq 3 -a ${ver[0]} -gt 10 ]
+	then
+		echo "主版本号为：${ver[0]}，次版本号为：${ver[1]}"
+	fi
+	
+4、判断vsftpd软件包是否安装，如果没有则自动安装
+	#!/bin/bash
+
+	if ! rpm -q vsftpd &>/dev/null
+	then
+		yum install -y vsftpd &>/dev/null
+	fi
+
+5、判断httpd是否运行
+	systemctl status httpd &>/dev/null
+	if [ $? -eq 0 ] 
+	then
+	    echo "httpd is running..."
+    else
+	    echo "httpd is not running..."
+    fi	
+	
+6、判断指定的主机是否能ping通，必须使用$1变量
+	#!/bin/bash
+
+
+	if ping -c2 $1 &> /dev/null
+	then
+		echo "$1 is up..."
+	else
+		echo "$1 is down..."
+	fi
+
+7、报警脚本，要求如下：
+	根分区剩余空间小于20%
+	内存已用空间大于80%
+	向用户alice发送告警邮件
+	配合crond每5分钟检查一次
+	[root@locaklhost ～]# echo "邮件正文"  | mail -s "邮件主题" alice 
+	
+	根分区剩余空间：df -h | awk '/\/$/ {print +$(NF-1)}'
+	内存已用空间：/usr/bin/free | awk '/Mem/{printf("RAM Usage: %.2f%\n"), $3/$2*100}' |  awk '{print $3}' | awk '{ if($1 > 80) print $0;}'
+		
+	
+8、判断用户输入的是否是数字
+	#!/bin/bash
+
+	read -p "please input: " num
+	if [[ "$num" =~ ^[0-9]+$ ]]
+	then
+		echo "$num is digit."
+	fi
+

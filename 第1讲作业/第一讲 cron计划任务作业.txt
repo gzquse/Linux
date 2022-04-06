@@ -1,0 +1,19 @@
+cron作业：
+
+1.设置一次性计划任务在18：00时关闭系统，并查看任务信息。
+	echo "systemctl poweroff" | at 18:00
+	at -l
+
+2.每周日凌晨2点30分，运行cp命令对/etc/fstab文件进行备份，存储位置为/backup/fstab-YYYY-MM-DD-hh-mm-ss。
+	时间：30 2 * * 7
+	命令：/usr/bin/cp /etc/fstab /backup/fstab-`date +%F-%H-%M-%S`
+
+
+3.每周2、4、7的22:00备份/var/log/secure文件至/logs目录中，文件名格式为“secure-yyyymmdd”。
+	时间: 0 22 * * 2,4,7 
+	命令：/usr/bin/cp /var/log/secure /logs/secure-`date +%Y%m%d`
+
+4.每两小时取出当前系统/proc/meminfo文件中以S或M开头的行信息追加至/tmp/meminfo.txt文件中。
+	时间：0 */2 * * *
+	命令：/usr/bin/grep ^[SM] /proc/meminfo >> /tmp/meminfo.txt
+
